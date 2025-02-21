@@ -10,11 +10,10 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const db = knex({
 	client: "pg",
 	connection: {
-		host: process.env.RENDER_HOST,
-		port: 5432,
-		user: process.env.RENDER_USER,
-		password: process.env.RENDER_PASSWORD,
-		database: process.env.RENDER_DATABASE,
+		host: "127.0.0.1",
+		user: "postgres",
+		password: "Wiggles123",
+		database: "final-store",
 	},
 });
 
@@ -26,6 +25,12 @@ app.use(bodyparser.json());
 app.use(cors());
 
 app.get("/", (req, res) => res.json("success"));
+
+app.get("/test", (req, res) => {
+	db.select("*")
+		.from("users")
+		.then((data) => res.json(data));
+});
 
 const verifyJWT = (req, res, next) => {
 	const authHeader = req.headers["authorization"];
@@ -79,7 +84,6 @@ app.post("/signin", (req, res) => {
 					.from("users")
 					.where("email", "=", email)
 					.then((data) => {
-						// res.json(user[0]);
 						const email = data[0].email;
 						const user = { email: email };
 						const accessToken = generateAccess(user);
@@ -190,12 +194,6 @@ app.post("/pass", (req, res) => {
 		})
 		.catch((err) => res.status(400).json("unable to change password"));
 });
-
-// app.get("/config", (req, res) => {
-// 	res.send({
-// 		publishableKey: process.env.STRIPE_PUBLISHABLE_KEY,
-// 	});
-// });
 
 app.post("/create-payment-intent", async (req, res) => {
 	const { amount } = req.body;
