@@ -20,14 +20,13 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const db = knex({
 	client: "pg",
 	connection: {
-		connectionString:
-			"postgresql://e_store_db_dxri_user:beEiqSukeeXTdlKs1eOgZAd90C4Dk51k@dpg-cus3i9qn91rc73dh888g-a.oregon-postgres.render.com/e_store_db_dxri",
+		connectionString: process.env.RENDER_DATABASE_URL,
 		ssl: { rejectUnauthorized: false },
-		host: "dpg-cus3i9qn91rc73dh888g-a",
+		host: process.env.RENDER_HOST,
 		port: 5432,
-		user: "e_store_db_dxri_user",
-		password: "beEiqSukeeXTdlKs1eOgZAd90C4Dk51k",
-		database: "e_store_db_dxri",
+		user: process.env.RENDER_USER,
+		password: process.env.RENDER_PASSWORD,
+		database: process.env.RENDER_DATABASE,
 	},
 });
 
