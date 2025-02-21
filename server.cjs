@@ -7,13 +7,27 @@ const knex = require("knex");
 const jwt = require("jsonwebtoken");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
+// const db = knex({
+// 	client: "pg",
+// 	connection: {
+// 		host: "127.0.0.1",
+// 		user: "postgres",
+// 		password: "Wiggles123",
+// 		database: "final-store",
+// 	},
+// });
+
 const db = knex({
 	client: "pg",
 	connection: {
-		host: "127.0.0.1",
-		user: "postgres",
-		password: "Wiggles123",
-		database: "final-store",
+		connectionString:
+			"postgresql://e_store_db_dxri_user:beEiqSukeeXTdlKs1eOgZAd90C4Dk51k@dpg-cus3i9qn91rc73dh888g-a.oregon-postgres.render.com/e_store_db_dxri",
+		ssl: { rejectUnauthorized: false },
+		host: "dpg-cus3i9qn91rc73dh888g-a",
+		port: 5432,
+		user: "e_store_db_dxri_user",
+		password: "beEiqSukeeXTdlKs1eOgZAd90C4Dk51k",
+		database: "e_store_db_dxri",
 	},
 });
 
