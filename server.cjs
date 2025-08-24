@@ -18,17 +18,17 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 // });
 
 function capitalizeSentence(sentence) {
-  const words = sentence.split(" ");
+	const words = sentence.split(" ");
 
-  const capitalizedWords = words.map(word => {
-    if (word.length === 0) {
-      return "";
-    }
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-  });
+	const capitalizedWords = words.map((word) => {
+		if (word.length === 0) {
+			return "";
+		}
+		return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+	});
 
-  // Join the capitalized words back into a sentence
-  return capitalizedWords.join(" ");
+	// Join the capitalized words back into a sentence
+	return capitalizedWords.join(" ");
 }
 
 const db = knex({
@@ -195,10 +195,10 @@ app.post("/edit", (req, res) => {
 				.update({
 					email: loginEmail[0].email,
 					name: capitalizeSentence(name),
-							phone: capitalizeSentence(phone),
-							address: capitalizeSentence(address),
-							city: capitalizeSentence(city),
-							country: capitalizeSentence(country),
+					phone: capitalizeSentence(phone),
+					address: capitalizeSentence(address),
+					city: capitalizeSentence(city),
+					country: capitalizeSentence(country),
 				})
 				.returning("*")
 				.then((data) => res.json(data));
@@ -227,19 +227,19 @@ app.post("/pass", (req, res) => {
 });
 
 app.post("/create-payment-intent", async (req, res) => {
-	const { amount, address, city, country} = req.body;
+	const { amount, address, city, country } = req.body;
 
 	try {
 		const paymentIntent = await stripe.paymentIntents.create({
 			amount: amount,
 			currency: "usd",
 			payment_method_types: ["card"],
-			shipping: {
-				address:{
-					city: city,
-					country: 
-				}
-			}
+			// shipping: {
+			// 	address:{
+			// 		city: city,
+			// 		country:
+			// 	}
+			// }
 		});
 		res.send({ paymentIntent });
 	} catch (err) {
