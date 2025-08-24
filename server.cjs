@@ -132,7 +132,7 @@ app.post("/logout", (req, res) => {
 });
 
 app.post("/register", (req, res) => {
-	const { name, email, phone, address, password } = req.body;
+	const { name, email, phone, address, city, country, password } = req.body;
 	const hash = bcrypt.hashSync(password);
 	if (!name || !email || !password) {
 		res.status(400).json("please fill in info");
@@ -153,6 +153,8 @@ app.post("/register", (req, res) => {
 							name: name,
 							phone: phone,
 							address: address,
+							city: city,
+							country: country,
 						})
 						.then((user) => {
 							res.json(user[0]);
@@ -168,7 +170,7 @@ app.post("/register", (req, res) => {
 });
 
 app.post("/edit", (req, res) => {
-	const { name, prevEmail, newEmail, phone, address } = req.body;
+	const { name, prevEmail, newEmail, phone, address, city, country } = req.body;
 	db("login")
 		.where({ email: prevEmail })
 		.update({ email: newEmail })
@@ -181,6 +183,8 @@ app.post("/edit", (req, res) => {
 					name: name,
 					phone: phone,
 					address: address,
+					city: city,
+					country: country,
 				})
 				.returning("*")
 				.then((data) => res.json(data));
@@ -216,6 +220,11 @@ app.post("/create-payment-intent", async (req, res) => {
 			amount: amount,
 			currency: "usd",
 			payment_method_types: ["card"],
+			// shipping: {
+			// 	address:{
+			// 		city:
+			// 	}
+			// }
 		});
 		res.send({ paymentIntent });
 	} catch (err) {
