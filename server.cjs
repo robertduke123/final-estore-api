@@ -227,19 +227,23 @@ app.post("/pass", (req, res) => {
 });
 
 app.post("/create-payment-intent", async (req, res) => {
-	const { amount, address, city, country } = req.body;
+	const { amount, name, email, phone, address, city, country } = req.body;
 
 	try {
 		const paymentIntent = await stripe.paymentIntents.create({
 			amount: amount,
-			currency: "usd",
+			currency: "nzd",
 			payment_method_types: ["card"],
-			// shipping: {
-			// 	address:{
-			// 		city: city,
-			// 		country:
-			// 	}
-			// }
+			receipt_email: email,
+			shipping: {
+				address: {
+					city: city,
+					country: country,
+					line1: address,
+				},
+				name: name,
+				phone: phone,
+			},
 		});
 		res.send({ paymentIntent });
 	} catch (err) {
