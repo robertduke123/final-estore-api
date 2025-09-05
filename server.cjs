@@ -252,9 +252,9 @@ app.post("/create-payment-intent", async (req, res) => {
 });
 
 app.post("/order", async (req, res) => {
-	const { userId, orderIds, orderQuantity } = req.body;
+	const { userId, orderIds, orderQuantities } = req.body;
 
-	return res.json({ userId, orderIds, orderQuantity });
+	return res.json({ userId, orderIds, orderQuantities });
 });
 
 app.listen(4000, () => console.log("app is running"));
