@@ -252,9 +252,18 @@ app.post("/create-payment-intent", async (req, res) => {
 });
 
 app.post("/order", async (req, res) => {
-	const { userId, orderIds, orderQuantities } = req.body;
+	const { userId, orderIds, orderQuantities, dateOfPurchase, orderNo } =
+		req.body;
 
-	return res.json({ userId, orderIds, orderQuantities });
+	db("orders")
+		.insert({
+			user_id: userId,
+			order_ids: orderIds,
+			order_quantities: orderQuantities,
+			date_of_purchase: dateOfPurchase,
+			order_no: orderNo,
+		})
+		.then(res.json("success"));
 });
 
 app.listen(4000, () => console.log("app is running"));
