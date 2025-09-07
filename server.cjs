@@ -270,7 +270,7 @@ app.post("/past-orders", async (req, res) => {
 	const { id } = req.body;
 
 	db("orders")
-		.where({ userId: id })
+		.where({ user_id: id })
 		.returning("*")
 		.then((data) => res.json(data));
 });
