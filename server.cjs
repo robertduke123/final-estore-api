@@ -266,4 +266,13 @@ app.post("/order", async (req, res) => {
 		.then(res.json("success"));
 });
 
+app.get("/past-orders", async (req, res) => {
+	const { id } = req.body;
+
+	db("orders")
+		.where({ userId: id })
+		.returning("*")
+		.then((data) => res.json(data));
+});
+
 app.listen(4000, () => console.log("app is running"));
