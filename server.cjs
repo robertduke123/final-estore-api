@@ -266,7 +266,7 @@ app.post("/order", async (req, res) => {
 		.then(res.json("success"));
 });
 
-app.get("/past-orders", async (req, res) => {
+app.post("/past-orders", async (req, res) => {
 	const { id } = req.body;
 
 	db("orders")
