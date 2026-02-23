@@ -1,21 +1,20 @@
 require("dotenv").config();
 const express = require("express");
 const bodyparser = require("body-parser");
-const bcrypt = require("bcrypt-nodejs");
 const cors = require("cors");
-const knex = require("knex");
-const jwt = require("jsonwebtoken");
+const {
+	signIn,
+	getAccessToken,
+	getUsers,
+	logOutUser,
+	registerUser,
+	editUser,
+	editPassword,
+	sendOrder,
+	getPastOrders,
+	verify,
+} = require("./firebase.config.cjs");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-
-// const db = knex({
-// 	client: "pg",
-// 	connection: {
-// 		host: "127.0.0.1",
-// 		user: "postgres",
-// 		password: "Wiggles123",
-// 		database: "final-store",
-// 	},
-// });
 
 function capitalizeSentence(sentence) {
 	const words = sentence.split(" ");
@@ -27,25 +26,8 @@ function capitalizeSentence(sentence) {
 		return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 	});
 
-	// Join the capitalized words back into a sentence
 	return capitalizedWords.join(" ");
 }
-
-const db = knex({
-	client: "pg",
-	connection: {
-		connectionString: process.env.RENDER_DATABASE_URL,
-		ssl: { rejectUnauthorized: false },
-		host: process.env.RENDER_HOST,
-		port: 5432,
-		user: process.env.RENDER_USER,
-		password: process.env.RENDER_PASSWORD,
-		database: process.env.RENDER_DATABASE,
-	},
-});
-
-const access = process.env.ACCESS_TOKEN_SECRET;
-const refresh = process.env.REFRESH_TOKEN_SECRET;
 
 const app = express();
 app.use(bodyparser.json());
@@ -54,176 +36,78 @@ app.use(cors());
 app.get("/", (req, res) => res.json("success"));
 
 app.get("/test", (req, res) => {
-	db.select("*")
-		.from("users")
-		.then((data) => res.json(data));
+	getUsers("robduke123@gmail.com").then((data) => res.json(data));
 });
 
-const verifyJWT = (req, res, next) => {
-	const authHeader = req.headers["authorization"];
-	if (!authHeader) return res.sendStatus(400);
-	const token = authHeader?.split(" ")[1];
-	jwt.verify(token, access, (err, user) => {
-		if (err) return res.status(403).json("bad token");
-		req.user = user;
-		next();
-	});
-};
+app.post("/signin", async (req, res) => {
+	try {
+		const { email, password } = req.body;
 
-const generateAccess = (user) => jwt.sign(user, access, { expiresIn: "5m" });
+		if (!email || !password) {
+			return res.status(400).json("incorrect form submission");
+		}
 
-app.post("/token", (req, res) => {
-	const refreshToken = req.body.token;
-	db.select("*")
-		.from("login")
-		.where({ refresh: refreshToken })
-		.then((data) => {
-			jwt.verify(data[0].refresh, refresh, (err, user) => {
-				if (err) return res.status(403).json("bad token");
-				const accessToken = generateAccess({ email: user.email });
-				res.json(accessToken);
-			});
-		})
-		.catch((err) => res.status(403).json("refreshToken is incorrect"));
-});
+		const valid = await signIn(email, password);
 
-app.get("/post", verifyJWT, (req, res) => {
-	db.select("*")
-		.from("users")
-		.then((data) => {
-			res.json(data.filter((user) => user.email === req.user.email));
+		if (!valid) {
+			return res.status(401).json("wrong credentials");
+		}
+
+		const tokens = await getAccessToken(email);
+
+		await verify(tokens.access);
+
+		const userData = await getUsers(email);
+
+		return res.json({
+			refresh: tokens.refresh,
+			...userData,
 		});
-});
-
-app.post("/signin", (req, res) => {
-	const { email, password } = req.body;
-	if (!email || !password) {
-		res.status(400).json("incorrect form submission");
+	} catch (err) {
+		console.error(err);
+		return res.status(500).json("server error");
 	}
-	db.select("email", "hash")
-		.from("login")
-		.where({ email: email })
-		.then((data) => {
-			const isValid = bcrypt.compareSync(password, data[0].hash);
-			if (isValid) {
-				return db
-					.select("*")
-					.from("users")
-					.where("email", "=", email)
-					.then((data) => {
-						const email = data[0].email;
-						const user = { email: email };
-						const accessToken = generateAccess(user);
-						const refreshToken = jwt.sign(user, refresh, { expiresIn: "6h" });
-						db.select("*")
-							.from("login")
-							.where({ email: email })
-							.update({ refresh: refreshToken })
-							.returning("*")
-							.then((data) => {
-								res.json({
-									accessToken: accessToken,
-									refreshToken: data[0].refresh,
-								});
-							});
-					})
-					.catch((err) => res.status(400).json("unable to get user"));
-			} else {
-				res.status(400).json("wrong cridentials");
-			}
-			// }
-		})
-		.catch((err) => res.status(400).json("wrong cridentials"));
 });
 
 app.post("/logout", (req, res) => {
 	const { email } = req.body;
-	db("login")
-		.where({ email: email })
-		.update({ refresh: null })
-		.returning("*")
-		.then((data) => res.json("log out seccessful"));
+	logOutUser(email).then((data) => res.json(data));
 });
 
 app.post("/register", (req, res) => {
-	const { name, email, phone, address, city, country, password } = req.body;
-	const hash = bcrypt.hashSync(password);
+	const { name, email, password, phone, address, city, country } = req.body;
 	if (!name || !email || !password) {
 		res.status(400).json("please fill in info");
 	} else {
-		db.transaction((trx) => {
-			trx
-				.insert({
-					hash: hash,
-					email: email,
-				})
-				.into("login")
-				.returning("email")
-				.then((loginEmail) => {
-					return trx("users")
-						.returning("*")
-						.insert({
-							email: loginEmail[0].email,
-							name: capitalizeSentence(name),
-							phone: capitalizeSentence(phone),
-							address: capitalizeSentence(address),
-							city: capitalizeSentence(city),
-							country: capitalizeSentence(country),
-						})
-						.then((user) => {
-							res.json(user[0]);
-						});
-				})
-				.then(trx.commit)
-				.catch(trx.rollback);
-		}).catch((err) => {
-			res.status(400).json("unable to register");
-			console.log(err);
-		});
+		const capitalizedData = {
+			email,
+			password,
+			name: capitalizeSentence(name),
+			phone: capitalizeSentence(phone),
+			address: capitalizeSentence(address),
+			city: capitalizeSentence(city),
+			country: capitalizeSentence(country),
+		};
+		registerUser(capitalizedData).then((data) => res.json(data));
 	}
 });
 
 app.post("/edit", (req, res) => {
 	const { name, prevEmail, newEmail, phone, address, city, country } = req.body;
-	db("login")
-		.where({ email: prevEmail })
-		.update({ email: newEmail })
-		.returning("email")
-		.then((loginEmail) => {
-			return db("users")
-				.where({ email: prevEmail })
-				.update({
-					email: loginEmail[0].email,
-					name: capitalizeSentence(name),
-					phone: capitalizeSentence(phone),
-					address: capitalizeSentence(address),
-					city: capitalizeSentence(city),
-					country: capitalizeSentence(country),
-				})
-				.returning("*")
-				.then((data) => res.json(data));
-		});
+	const capitalizedData = {
+		prevEmail,
+		newEmail,
+		name: capitalizeSentence(name),
+		phone: capitalizeSentence(phone),
+		address: capitalizeSentence(address),
+		city: capitalizeSentence(city),
+		country: capitalizeSentence(country),
+	};
+
+	editUser(capitalizedData).then((data) => res.json(data));
 });
 app.post("/pass", (req, res) => {
-	const { email, prevPassword, newPassword } = req.body;
-	const newHash = bcrypt.hashSync(newPassword);
-	console.log(prevPassword, newPassword);
-
-	db.select("email", "hash")
-		.from("login")
-		.where({ email: email })
-		.then((data) => {
-			const isValid = bcrypt.compareSync(prevPassword, data[0].hash);
-			if (isValid) {
-				return db("login")
-					.where({ email: email })
-					.update({ hash: newHash })
-					.then(res.json("Password successfully changed"));
-			} else {
-				return res.status(400).json("Previous password is incorrect");
-			}
-		})
-		.catch((err) => res.status(400).json("unable to change password"));
+	editPassword(req.body).then((data) => res.json(data));
 });
 
 app.post("/create-payment-intent", async (req, res) => {
@@ -252,27 +136,12 @@ app.post("/create-payment-intent", async (req, res) => {
 });
 
 app.post("/order", async (req, res) => {
-	const { userId, orderIds, orderQuantities, dateOfPurchase, orderNo } =
-		req.body;
-
-	db("orders")
-		.insert({
-			user_id: userId,
-			order_ids: orderIds,
-			order_quantities: orderQuantities,
-			date_of_purchase: dateOfPurchase,
-			order_no: orderNo,
-		})
-		.then(res.json("success"));
+	sendOrder(req.body).then((data) => res.json(data));
 });
 
 app.post("/past-orders", async (req, res) => {
 	const { id } = req.body;
-
-	db("orders")
-		.where({ user_id: id })
-		.returning("*")
-		.then((data) => res.json(data));
+	getPastOrders(id).then((data) => res.json(data));
 });
 
 app.listen(4000, () => console.log("app is running"));
