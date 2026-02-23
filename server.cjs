@@ -43,9 +43,9 @@ app.get("/test", (req, res) => {
 app.post("/token", async (req, res) => {
 	const refreshToken = req.body.token;
 	const token = await refreshLogin(refreshToken);
-	await verify(token);
+	const data = await verify(token);
 
-	await getUsers(email).then((data) => res.json(data));
+	await getUsers(data.email).then((data) => res.json(data));
 });
 
 app.post("/signin", async (req, res) => {
