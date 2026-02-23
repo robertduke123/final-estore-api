@@ -13,6 +13,7 @@ const {
 	sendOrder,
 	getPastOrders,
 	verify,
+	refreshLogin,
 } = require("./firebase.config.cjs");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
@@ -37,6 +38,14 @@ app.get("/", (req, res) => res.json("success"));
 
 app.get("/test", (req, res) => {
 	getUsers("robduke123@gmail.com").then((data) => res.json(data));
+});
+
+app.post("/token", async (req, res) => {
+	const refreshToken = req.body.token;
+	const token = await refreshLogin(refreshToken);
+	await verify(token);
+
+	await getUsers(email).then((data) => res.json(data));
 });
 
 app.post("/signin", async (req, res) => {
