@@ -61,7 +61,7 @@ app.post("/signin", async (req, res) => {
 
 		return res.json({
 			refresh: tokens.refresh,
-			...userData,
+			userData,
 		});
 	} catch (err) {
 		console.error(err);
