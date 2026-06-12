@@ -1,14 +1,5 @@
-const { initializeApp } = require("firebase/app");
-const {
-	getFirestore,
-	collection,
-	query,
-	where,
-	getDocs,
-	doc,
-	updateDoc,
-	setDoc,
-} = require("firebase/firestore");
+const { initializeApp, cert } = require("firebase-admin/app");
+const { getFirestore } = require("firebase-admin/firestore");
 
 const dotenv = require("dotenv");
 const bcrypt = require("bcrypt");
@@ -19,17 +10,24 @@ dotenv.config();
 const access = process.env.ACCESS_TOKEN_SECRET;
 const refresh = process.env.REFRESH_TOKEN_SECRET;
 
-const firebaseConfig = {
-	apiKey: process.env.FIREBASE_API_KEY,
-	authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-	projectId: process.env.FIREBASE_PROJECT_ID,
-	storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-	messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-	appId: process.env.FIREBASE_APP_ID,
-};
+let serviceAccount;
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+if (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64) {
+	const decodedKey = Buffer.from(
+		process.env.FIREBASE_SERVICE_ACCOUNT_BASE64,
+		"base64",
+	).toString("utf8");
+	serviceAccount = JSON.parse(decodedKey);
+} else {
+	serviceAccount = require("./serviceAccountKey.json");
+}
+
+initializeApp({
+	credential: cert(serviceAccount),
+});
+const db = getFirestore();
+
+// --- AUTH UTILITIES ---
 
 const generateAccess = (user) => jwt.sign(user, access, { expiresIn: "5m" });
 
@@ -42,16 +40,19 @@ const verify = async (token) => {
 	});
 };
 
+// --- DATABASE UTILITIES ---
+
 const getId = async (collectionName) => {
-	const snapshot = await getDocs(collection(db, collectionName));
+	const snapshot = await db.collection(collectionName).get();
 	const data = snapshot.docs.map((doc) => doc.id);
 	return parseInt(data[data.length - 1] || "0") + 1;
 };
 
 const signIn = async (email, password) => {
-	const snapshot = await getDocs(
-		query(collection(db, "login"), where("email", "==", email)),
-	);
+	const snapshot = await db
+		.collection("login")
+		.where("email", "==", email)
+		.get();
 
 	const userDoc = snapshot.docs.find((doc) =>
 		bcrypt.compareSync(password, doc.data().hash),
@@ -71,8 +72,11 @@ const registerUser = async (data) => {
 	const id = String(await getId("login"));
 	const refreshToken = jwt.sign({ email }, refresh, { expiresIn: "6h" });
 
-	await setDoc(doc(db, "login", id), { email, hash, refresh: refreshToken });
-	await setDoc(doc(db, "users", id), {
+	await db
+		.collection("login")
+		.doc(id)
+		.set({ email, hash, refresh: refreshToken });
+	await db.collection("users").doc(id).set({
 		email,
 		name,
 		phone,
@@ -89,8 +93,10 @@ const logOutUser = async (email) => {
 };
 
 const getUsers = async (email) => {
-	const userQ = query(collection(db, "users"), where("email", "==", email));
-	const snapshot = await getDocs(userQ);
+	const snapshot = await db
+		.collection("users")
+		.where("email", "==", email)
+		.get();
 
 	const data = snapshot.docs.map((doc) => ({
 		id: doc.id,
@@ -121,9 +127,10 @@ const editUser = async (data) => {
 const editPassword = async (data) => {
 	const { email, prevPassword, newPassword } = data;
 
-	const snapshot = await getDocs(
-		query(collection(db, "login"), where("email", "==", email)),
-	);
+	const snapshot = await db
+		.collection("login")
+		.where("email", "==", email)
+		.get();
 
 	const validDoc = snapshot.docs.find((doc) =>
 		bcrypt.compareSync(prevPassword, doc.data().hash),
@@ -151,9 +158,10 @@ const getAccessToken = async (email) => {
 };
 
 const refreshLogin = async (token) => {
-	const snapshot = await getDocs(
-		query(collection(db, "login"), where("refresh", "==", token)),
-	);
+	const snapshot = await db
+		.collection("login")
+		.where("refresh", "==", token)
+		.get();
 
 	if (snapshot.empty) {
 		throw new Error("refresh token is incorrect");
@@ -161,35 +169,39 @@ const refreshLogin = async (token) => {
 
 	const loginDoc = snapshot.docs[0];
 
-	jwt.verify(token, refresh);
+	try {
+		jwt.verify(token, refresh);
 
-	const accessToken = generateAccess({
-		email: loginDoc.data().email,
-	});
+		const accessToken = generateAccess({
+			email: loginDoc.data().email,
+		});
 
-	return accessToken;
+		return accessToken;
+	} catch (err) {
+		await loginDoc.ref.update({ refresh: null });
+		throw new Error("refresh token expired");
+	}
 };
 
 const updateData = async (collectionName, email, data) => {
-	const updateQuery = query(
-		collection(db, collectionName),
-		where("email", "==", email),
-	);
-
-	const updateSnapshot = await getDocs(updateQuery);
+	const updateSnapshot = await db
+		.collection(collectionName)
+		.where("email", "==", email)
+		.get();
 
 	for (const document of updateSnapshot.docs) {
-		const docRef = doc(db, collectionName, document.id);
-		await updateDoc(docRef, data);
+		await db.collection(collectionName).doc(document.id).update(data);
 	}
 };
+
+// --- E-COMMERCE / ORDER MANAGERS ---
 
 const sendOrder = async (data) => {
 	const { userId, orderIds, orderQuantities, dateOfPurchase, orderNo } = data;
 
 	const id = String(await getId("orders"));
 
-	await setDoc(doc(db, "orders", id), {
+	await db.collection("orders").doc(id).set({
 		user_id: userId,
 		order_ids: orderIds,
 		order_quantities: orderQuantities,
@@ -201,12 +213,10 @@ const sendOrder = async (data) => {
 };
 
 const getPastOrders = async (id) => {
-	const ordersQuery = query(
-		collection(db, "orders"),
-		where("user_id", "==", id),
-	);
-
-	const ordersSnapshot = await getDocs(ordersQuery);
+	const ordersSnapshot = await db
+		.collection("orders")
+		.where("user_id", "==", id)
+		.get();
 
 	return ordersSnapshot.docs.map((doc) => doc.data());
 };
