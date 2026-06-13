@@ -80,7 +80,9 @@ app.post("/signin", async (req, res) => {
 
 app.post("/logout", (req, res) => {
 	const { email } = req.body;
-	logOutUser(email).then((data) => res.json(data));
+	console.log(email);
+
+	logOutUser(email).then((data) => res.json("logout successful"));
 });
 
 app.post("/register", (req, res) => {
